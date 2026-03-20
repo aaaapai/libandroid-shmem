@@ -22,7 +22,7 @@ jobs:
           - arch: x86_64
             target: x86_64-linux-android21
           - arch: riscv64
-            target: riscv64-linux-android21
+            target: riscv64-linux-android35
     
     steps:
     - name: Checkout code
