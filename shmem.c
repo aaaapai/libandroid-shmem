@@ -14,6 +14,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <paths.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
 
 #if __ANDROID_API__ < 26
 #define __u32 uint32_t
