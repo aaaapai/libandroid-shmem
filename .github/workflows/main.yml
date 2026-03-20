@@ -1,41 +1,61 @@
-name: Build and Upload
+name: Build libandroid-shmem for Android
 
 on:
   push:
+    branches: [ main, master ]
+  pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build for ${{ matrix.arch }}
     runs-on: ubuntu-latest
     
-    steps:
-    - uses: actions/checkout@main
+    strategy:
+      matrix:
+        include:
+          - arch: arm
+            target: armv7a-linux-androideabi21
+          - arch: arm64
+            target: aarch64-linux-android21
+          - arch: x86_64
+            target: x86_64-linux-android21
+          - arch: riscv64
+            target: riscv64-linux-android21
     
-    - name: Build all architectures
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build for ${{ matrix.arch }}
       run: |
         NDK_PATH="$ANDROID_NDK_LATEST_HOME"
+        CC="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/${{ matrix.target }}-clang"
+        CFLAGS="-O3 -mllvm -polly -fPIC -D_GNU_SOURCE"
         
-        for arch in arm arm64 x86_64 riscv64; do
-          case $arch in
-            arm) target="armv7a-linux-androideabi21" ;;
-            arm64) target="aarch64-linux-android21" ;;
-            x86_64) target="x86_64-linux-android21" ;;
-            riscv64) target="riscv64-linux-android21" ;;
-          esac
-          
-          CC="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/$target-clang"
-          mkdir -p artifacts/$arch
-          
-          $CC -O3 -mllvm -polly -fPIC -c shmem.c -o artifacts/$arch/shmem.o
-          $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar rcs artifacts/$arch/libandroid-shmem.a artifacts/$arch/shmem.o
-          $CC -O3 -mllvm -polly -fPIC -shared shmem.c -o artifacts/$arch/libandroid-shmem.so
-          cp shm.h artifacts/$arch/
-        done
+        mkdir -p artifacts/${{ matrix.arch }}
+        
+        # 编译
+        $CC $CFLAGS -c shmem.c -o artifacts/${{ matrix.arch }}/shmem.o
+        
+        # 创建静态库
+        $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar rcs \
+          artifacts/${{ matrix.arch }}/libandroid-shmem.a \
+          artifacts/${{ matrix.arch }}/shmem.o
+        
+        # 创建共享库
+        $CC $CFLAGS -shared shmem.c -o artifacts/${{ matrix.arch }}/libandroid-shmem.so
+        
+        # 复制头文件
+        cp shm.h artifacts/${{ matrix.arch }}/
+        
+        # 显示结果
+        ls -lh artifacts/${{ matrix.arch }}/
     
     - name: Upload artifacts
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
-        name: libandroid-shmem
-        path: artifacts/
+        name: libandroid-shmem-${{ matrix.arch }}
+        path: artifacts/${{ matrix.arch }}/
         retention-days: 30
