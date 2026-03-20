@@ -1,0 +1,41 @@
+name: Build and Upload
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@main
+    
+    - name: Build all architectures
+      run: |
+        NDK_PATH="$ANDROID_NDK_LATEST_HOME"
+        
+        for arch in arm arm64 x86_64 riscv64; do
+          case $arch in
+            arm) target="armv7a-linux-androideabi21" ;;
+            arm64) target="aarch64-linux-android21" ;;
+            x86_64) target="x86_64-linux-android21" ;;
+            riscv64) target="riscv64-linux-android21" ;;
+          esac
+          
+          CC="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/$target-clang"
+          mkdir -p artifacts/$arch
+          
+          $CC -O3 -mllvm -polly -fPIC -c shmem.c -o artifacts/$arch/shmem.o
+          $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar rcs artifacts/$arch/libandroid-shmem.a artifacts/$arch/shmem.o
+          $CC -O3 -mllvm -polly -fPIC -shared shmem.c -o artifacts/$arch/libandroid-shmem.so
+          cp shm.h artifacts/$arch/
+        done
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@main
+      with:
+        name: libandroid-shmem
+        path: artifacts/
+        retention-days: 30
